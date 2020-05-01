@@ -9,7 +9,7 @@ import os
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', help='Path to dataset folder',
     required=True)
-parser.add_argument('--log', help='Log Path')
+parser.add_argument('--logdir', help='Log Path', default='./ckpt')
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
   loss_object = tf.keras.losses.Huber(reduction=tf.keras.losses.Reduction.NONE)
   train_loss = tf.keras.metrics.Mean(name='train_loss')
   ckpt = tf.train.Checkpoint(model=model)
-  ckpt_mgr = tf.train.CheckpointManager(ckpt, './ckpt', max_to_keep=3)
+  ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
   def train_step(origin, speaker_one_hot, target):
     with tf.GradientTape() as tape:
@@ -31,7 +31,7 @@ def main():
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     train_loss(loss)
 
-  EPOCHS = 1
+  EPOCHS = 1000
   for epoch in range(EPOCHS):
     # Reset the metrics at the start of the next epoch
     train_loss.reset_states()
@@ -47,10 +47,10 @@ def main():
     template = 'Epoch {}, Loss: {}'
     print(template.format(epoch + 1, train_loss.result()))
   ckpt_mgr.save()
-  signatures = model.call.get_concrete_function(
-      tf.TensorSpec(shape=[None, None, 80, 1], dtype=tf.float32, name="x"),
-      tf.TensorSpec(shape=[None, 2], dtype=tf.float32, name="speaker_one_hot"))
-  tf.keras.models.save_model(model, 'ckpt', save_format='tf')
+  # signatures = model.call.get_concrete_function(
+  #     tf.TensorSpec(shape=[None, None, 80, 1], dtype=tf.float32, name="x"),
+  #     tf.TensorSpec(shape=[None, 2], dtype=tf.float32, name="speaker_one_hot"))
+  # tf.keras.models.save_model(model, 'ckpt', signatures=signatures, save_format='tf')
 
 if __name__=='__main__':
   main()
