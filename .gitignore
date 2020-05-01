@@ -1,5 +1,9 @@
 dataset/
-
+ckpt/
+*.tfrecords
+*.tfrecord
+*.records
+*.record
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
