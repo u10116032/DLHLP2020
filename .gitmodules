@@ -1,3 +1,6 @@
 [submodule "Homework/hw1/End-to-end-ASR-Pytorch"]
 	path = Homework/hw1/End-to-end-ASR-Pytorch
 	url = git@github.com:u10116032/End-to-end-ASR-Pytorch.git
+[submodule "Homework/hw2/2-1/Voice-Conversion"]
+	path = Homework/hw2/2-1/Voice-Conversion
+	url = git@github.com:BogiHsu/Voice-Conversion.git
