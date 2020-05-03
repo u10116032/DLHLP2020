@@ -15,6 +15,9 @@ def audio_example(filepath):
   filename = filepath.strip().split('/')[-1]
   speaker_id, sample_id = re.match(r'p(\d+)_(\d+)\.wav', filename).groups()
   mag, mel = audio_process.wav2spectrogram(filepath)
+  mag = np.transpose(mag.astype(np.float32))
+  mel = np.transpose(mel.astype(np.float32))
+
   feature = {
       'speaker_id': tf.train.Feature(int64_list=tf.train.Int64List(
           value=[int(speaker_id)])),

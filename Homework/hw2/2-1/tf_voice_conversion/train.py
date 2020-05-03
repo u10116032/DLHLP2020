@@ -23,6 +23,7 @@ def main():
   ckpt = tf.train.Checkpoint(model=model)
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
+  @tf.function
   def train_step(origin, speaker_one_hot, target):
     with tf.GradientTape() as tape:
       convert = model(origin, speaker_one_hot)
@@ -42,15 +43,10 @@ def main():
       mel = feature['mel']
       mel = tf.expand_dims(mel, axis=-1)
       train_step(mel, speaker_one_hot, mel)
-      break
     ckpt_mgr.save()
     template = 'Epoch {}, Loss: {}'
     print(template.format(epoch + 1, train_loss.result()))
   ckpt_mgr.save()
-  # signatures = model.call.get_concrete_function(
-  #     tf.TensorSpec(shape=[None, None, 80, 1], dtype=tf.float32, name="x"),
-  #     tf.TensorSpec(shape=[None, 2], dtype=tf.float32, name="speaker_one_hot"))
-  # tf.keras.models.save_model(model, 'ckpt', signatures=signatures, save_format='tf')
 
 if __name__=='__main__':
   main()
