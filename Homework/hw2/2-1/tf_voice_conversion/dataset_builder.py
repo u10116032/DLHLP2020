@@ -44,8 +44,8 @@ def build(filepaths, batch=16, prefetch=4):
   dataset = dataset.interleave(lambda x:
       tf.data.TFRecordDataset(x).map(_parse_feature,
       num_parallel_calls=len(filepaths)),
-      cycle_length=4, block_length=16)
-  dataset = dataset.repeat(-1)
+      cycle_length=4, block_length=4)
+  # dataset = dataset.repeat(-1)
   dataset = dataset.shuffle(buffer_size=batch * prefetch)
   dataset = dataset.padded_batch(batch_size=batch, padded_shapes=pad_shape,
       drop_remainder=True)

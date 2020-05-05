@@ -5,6 +5,7 @@ import argparse
 import yaml
 import glob
 import os
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', help='Path to dataset folder',
@@ -15,7 +16,7 @@ parser.add_argument('--logdir', help='Log Path', default='./ckpt')
 def main():
   args = parser.parse_args()
   filenames = glob.glob(os.path.join(args.dataset,'*.tfrecord'))
-  dataset = dataset_builder.build(filenames)
+  dataset = dataset_builder.build(filenames, prefetch=1, batch=2)
   auto_encoder = AutoEncoder()
   discriminator = Discriminator(num_speaker=2)
   optimizer = tf.keras.optimizers.Adam()
@@ -25,8 +26,7 @@ def main():
   ckpt = tf.train.Checkpoint(model=auto_encoder)
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
-  @tf.function
-  def train_step(origin, speaker_one_hot, target_wav, speaker_id):
+  def train_step(origin, speaker_one_hot, target):
     with tf.GradientTape() as tape:
       encoded, decoded = auto_encoder(origin, speaker_one_hot)
       logits = discriminator(encoded)
@@ -45,12 +45,16 @@ def main():
     # Reset the metrics at the start of the next epoch
     train_loss.reset_states()
 
-    for feature in dataset:
+    for feature in tqdm(dataset):
       speaker_id = feature['speaker_id']
       speaker_one_hot = tf.one_hot(speaker_id, 2)
       mel = feature['mel']
       mel = tf.expand_dims(mel, axis=-1)
-      train_step(mel, speaker_one_hot, mel, speaker_id)
+      try:
+        train_step(mel, speaker_one_hot, mel)
+      except Exception as e:
+        print(e)
+        print(mel.shape)
     ckpt_mgr.save()
     template = 'Epoch {}, Loss: {}'
     print(template.format(epoch + 1, train_loss.result()))
