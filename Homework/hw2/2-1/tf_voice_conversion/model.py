@@ -71,16 +71,31 @@ class AutoEncoder(tf.keras.Model):
     speaker_inform = tf.tile(speaker_one_hot,[1,shape[1],shape[2],1])
     encoder_feature = tf.concat([encoder_feature, speaker_inform], axis=-1)
     decoder_feature = self.decoder(encoder_feature)
-    return decoder_feature
+    return encoder_feature, decoder_feature
 
+
+class Discriminator(tf.keras.Model):
+  def __init__(self, num_speaker=2):
+    super(Discriminator, self).__init__()
+    self.gap = tf.keras.layers.GlobalAvgPool2D()
+    self.dense = tf.keras.layers.Dense(num_speaker)
+
+  def call(self, latent):
+    flatten = self.gap(latent)
+    logits = self.dense(flatten)
+    return logits
 
 def main():
   mel_feature = np.ones((4, 512, 240, 1), dtype=np.float32)
+  speaker_one_hot = np.eye(2)[[0,0,0,0]]
   print(mel_feature.shape)
   # print(mel_feature)
   auto_encoder = AutoEncoder()
-  converted_mel_feature = auto_encoder(mel_feature)
-  print(converted_mel_feature.shape)
+  discriminator = Discriminator(2)
+  encoded, decoded = auto_encoder(mel_feature, speaker_one_hot)
+  logits = discriminator(encoded)
+  print(decoded.shape)
+  print(logits.shape)
   # print(converted_mel_feature.numpy())
   # print(len(auto_encoder.variables))
   # print(auto_encoder.trainable_weights)
