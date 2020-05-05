@@ -26,21 +26,21 @@ def main():
   ckpt = tf.train.Checkpoint(model=auto_encoder)
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
-  def train_step(origin, speaker_one_hot, target):
+  def train_step(origin, speaker_one_hot, target_wav, speaker_id, epoch_rate):
     with tf.GradientTape() as tape:
       encoded, decoded = auto_encoder(origin, speaker_one_hot)
       logits = discriminator(encoded)
       rec_loss = tf.reduce_mean(huber_loss(decoded, target_wav))
       speaker_id_one_hot = tf.one_hot(speaker_id, 2)
       d_loss = crossentropy_loss(speaker_id_one_hot, logits)
-      loss = rec_loss + (-1)*logits
+      loss = rec_loss + (-0.01) * epoch_rate * logits
       trainable_variables = auto_encoder.trainable_variables + \
           discriminator.trainable_variables
       gradients = tape.gradient(loss, trainable_variables)
       optimizer.apply_gradients(zip(gradients, trainable_variables))
     train_loss(loss)
 
-  EPOCHS = 1000
+  EPOCHS = 10000
   for epoch in range(EPOCHS):
     # Reset the metrics at the start of the next epoch
     train_loss.reset_states()
@@ -51,7 +51,7 @@ def main():
       mel = feature['mel']
       mel = tf.expand_dims(mel, axis=-1)
       try:
-        train_step(mel, speaker_one_hot, mel)
+        train_step(mel, speaker_one_hot, mel, speaker_id, epoch/EPOCHS)
       except Exception as e:
         print(e)
         print(mel.shape)
