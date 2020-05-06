@@ -61,7 +61,7 @@ class AutoEncoder(tf.keras.Model):
         tf.keras.layers.Conv2DTranspose(1, (9,4), (1,1), 'same')
     ])
 
-  @tf.function(input_signature=[tf.TensorSpec([None,None,240,1], tf.float32),
+  @tf.function(input_signature=[tf.TensorSpec([None,512,240,1], tf.float32),
                                 tf.TensorSpec([None,2], tf.float32)])
   def call(self, x, speaker_one_hot):
     encoder_feature = self.encoder(x)

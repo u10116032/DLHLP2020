@@ -20,20 +20,26 @@ def main():
   auto_encoder = AutoEncoder()
   discriminator = Discriminator(num_speaker=2)
   optimizer = tf.keras.optimizers.Adam()
-  huber_loss = tf.keras.losses.Huber(reduction=tf.keras.losses.Reduction.NONE)
-  crossentropy_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+  huber_loss = tf.keras.losses.Huber()
+  crossentropy_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=True,
+      label_smoothing=0.2)
   train_loss = tf.keras.metrics.Mean(name='train_loss')
-  ckpt = tf.train.Checkpoint(model=auto_encoder)
+  ckpt = tf.train.Checkpoint( auto_encoder=auto_encoder,
+                              discriminator=discriminator,
+                              optimizer=optimizer )
+  latest_ckpt = tf.train.latest_checkpoint(args.logdir)
+  if latest_ckpt is not None:
+    ckpt.restore(latest_ckpt).assert_consumed()
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
   def train_step(origin, speaker_one_hot, target_wav, speaker_id, epoch_rate):
     with tf.GradientTape() as tape:
       encoded, decoded = auto_encoder(origin, speaker_one_hot)
       logits = discriminator(encoded)
-      rec_loss = tf.reduce_mean(huber_loss(decoded, target_wav))
+      rec_loss = huber_loss(decoded, target_wav)
       speaker_id_one_hot = tf.one_hot(speaker_id, 2)
       d_loss = crossentropy_loss(speaker_id_one_hot, logits)
-      loss = rec_loss + (-0.01) * epoch_rate * logits
+      loss = rec_loss + (-0.01) * epoch_rate * d_loss
       trainable_variables = auto_encoder.trainable_variables + \
           discriminator.trainable_variables
       gradients = tape.gradient(loss, trainable_variables)
