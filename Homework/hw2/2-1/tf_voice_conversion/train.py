@@ -18,7 +18,7 @@ parser.add_argument('--logdir', help='Log Path', default='./ckpt')
 def main():
   args = parser.parse_args()
   filenames = glob.glob(os.path.join(args.dataset,'*.tfrecord'))
-  dataset = dataset_builder.build(filenames, prefetch=2, batch=4)
+  dataset = dataset_builder.build(filenames, prefetch=2, batch=2)
 
   auto_encoder = AutoEncoder()
   auto_encoder_optimizer = tf.keras.optimizers.Adam()
@@ -36,16 +36,20 @@ def main():
                               discriminator_optimizer=discriminator_optimizer )
 
   def train_step(origin, speaker_one_hot, target_wav, epoch_rate):
-    with tf.GradientTape(persistent=True) as tape:
+    with tf.GradientTape() as tape:
+      encoded, decoded = auto_encoder(origin, speaker_one_hot)
+      logits = discriminator(encoded)
+      d_loss = crossentropy_loss(speaker_one_hot, logits)
+      discriminator_gradients = tape.gradient(d_loss,
+        discriminator.trainable_variables)
+      discriminator_optimizer.apply_gradients(
+        zip(discriminator_gradients, discriminator.trainable_variables))
+    with tf.GradientTape() as tape:
       encoded, decoded = auto_encoder(origin, speaker_one_hot)
       logits = discriminator(encoded)
       rec_loss = huber_loss(decoded, target_wav)
       d_loss = crossentropy_loss(speaker_one_hot, logits)
       auto_encoder_loss = rec_loss + (-0.01) * epoch_rate * d_loss
-      discriminator_gradients = tape.gradient(d_loss,
-        discriminator.trainable_variables)
-      discriminator_optimizer.apply_gradients(
-        zip(discriminator_gradients, discriminator.trainable_variables))
       auto_encoder_gradients = tape.gradient(auto_encoder_loss,
         auto_encoder.trainable_variables)
       auto_encoder_optimizer.apply_gradients(
