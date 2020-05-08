@@ -66,7 +66,7 @@ if __name__ == '__main__':
     speaker_id = feature['speaker_id'].numpy()
     sample_id = feature['sample_id'].numpy()
     filename = feature['filename'].numpy()
-    mag = feature['mag'].numpy()
+    mel = feature['mel'].numpy()
     print(filename)
-    for m in mag:
+    for m in mel:
       print(m.shape)

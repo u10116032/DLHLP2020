@@ -21,29 +21,37 @@ def main():
   dataset = dataset_builder.build(filenames, prefetch=2, batch=4)
 
   auto_encoder = AutoEncoder()
+  auto_encoder_optimizer = tf.keras.optimizers.Adam()
   discriminator = Discriminator(num_speaker=2)
-  optimizer = tf.keras.optimizers.Adam()
+  discriminator_optimizer = tf.keras.optimizers.Adam()
   huber_loss = tf.keras.losses.Huber()
   crossentropy_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=True,
       label_smoothing=0.2)
 
-  train_loss = tf.keras.metrics.Mean(name='train_loss')
+  auto_encoder_metric = tf.keras.metrics.Mean(name='auto_encoder_loss')
+  discriminator_metric = tf.keras.metrics.Mean(name='discriminator_loss')
   ckpt = tf.train.Checkpoint( auto_encoder=auto_encoder,
                               discriminator=discriminator,
-                              optimizer=optimizer )
+                              auto_encoder_optimizer=auto_encoder_optimizer,
+                              discriminator_optimizer=discriminator_optimizer )
 
   def train_step(origin, speaker_one_hot, target_wav, epoch_rate):
-    with tf.GradientTape() as tape:
+    with tf.GradientTape(persistent=True) as tape:
       encoded, decoded = auto_encoder(origin, speaker_one_hot)
       logits = discriminator(encoded)
       rec_loss = huber_loss(decoded, target_wav)
       d_loss = crossentropy_loss(speaker_one_hot, logits)
-      loss = rec_loss + (-0.01) * epoch_rate * d_loss
-      trainable_variables = auto_encoder.trainable_variables + \
-          discriminator.trainable_variables
-      gradients = tape.gradient(loss, trainable_variables)
-      optimizer.apply_gradients(zip(gradients, trainable_variables))
-    train_loss(loss)
+      auto_encoder_loss = rec_loss + (-0.01) * epoch_rate * d_loss
+      discriminator_gradients = tape.gradient(d_loss,
+        discriminator.trainable_variables)
+      discriminator_optimizer.apply_gradients(
+        zip(discriminator_gradients, discriminator.trainable_variables))
+      auto_encoder_gradients = tape.gradient(auto_encoder_loss,
+        auto_encoder.trainable_variables)
+      auto_encoder_optimizer.apply_gradients(
+        zip(auto_encoder_gradients, auto_encoder.trainable_variables))
+    auto_encoder_metric(auto_encoder_loss)
+    discriminator_metric(d_loss)
 
   latest_ckpt = tf.train.latest_checkpoint(args.logdir)
   if latest_ckpt is not None:
@@ -56,7 +64,8 @@ def main():
   EPOCHS = 10000
   for epoch in range(EPOCHS):
     # Reset the metrics at the start of the next epoch
-    train_loss.reset_states()
+    auto_encoder_metric.reset_states()
+    discriminator_metric.reset_states()
 
     for feature in tqdm(dataset):
       speaker_id = feature['speaker_id']
@@ -69,8 +78,11 @@ def main():
         print(e)
         print(mel.shape)
     ckpt_mgr.save()
-    template = 'Epoch {}, Loss: {}'
-    print(template.format(epoch + 1, train_loss.result()))
+    template = 'Epoch {}, AE Loss: {}, D Loss: {}'
+    log_msg = template.format( epoch+1,
+                               auto_encoder_metric.result(),
+                               discriminator_metric.result() )
+    print(log_msg)
   ckpt_mgr.save()
 
 if __name__=='__main__':
