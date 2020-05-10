@@ -49,7 +49,7 @@ def main():
       logits = discriminator(encoded)
       rec_loss = huber_loss(decoded, target_wav)
       d_loss = crossentropy_loss(speaker_one_hot, logits)
-      auto_encoder_loss = rec_loss + (-0.01) * epoch_rate * d_loss
+      auto_encoder_loss = rec_loss + (-0.01) * d_loss
       auto_encoder_gradients = tape.gradient(auto_encoder_loss,
         auto_encoder.trainable_variables)
       auto_encoder_optimizer.apply_gradients(
@@ -59,8 +59,8 @@ def main():
 
   latest_ckpt = tf.train.latest_checkpoint(args.logdir)
   if latest_ckpt is not None:
-    dummy_voice = np.ones((1, 512, audio_process.n_mels, 1))
-    dummy_speaker = np.eye(2)[[0]]
+    dummy_voice = np.ones((1, 512, audio_process.n_mels, 1), dtype=np.float32)
+    dummy_speaker = np.eye(2,dtype=np.float32)[[0]]
     train_step(dummy_voice, dummy_speaker, dummy_voice, 0)
     ckpt.restore(latest_ckpt).assert_consumed()
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)

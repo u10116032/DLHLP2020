@@ -3,13 +3,15 @@ import tensorflow_addons as tfa
 import numpy as np
 
 class DownSampleLayer(tf.keras.Model):
-  def __init__(self, filters, kernel_size, stride, padding):
+  def __init__(self, filters, kernel_size, stride, padding, residual=False):
     super(DownSampleLayer, self).__init__()
     self.conv1 = tf.keras.layers.Conv2D(filters, kernel_size, stride, padding)
     self.inst_norm1 = tfa.layers.InstanceNormalization()
-
     self.conv2 = tf.keras.layers.Conv2D(filters, kernel_size, stride, padding)
     self.inst_norm2 = tfa.layers.InstanceNormalization()
+    self.residual = residual
+    if residual:
+      self.identity = tf.keras.layers.Conv2D(filters, (1,1), stride, padding)
 
   def call(self, x):
     h = self.conv1(x)
@@ -17,20 +19,26 @@ class DownSampleLayer(tf.keras.Model):
 
     gate = self.conv2(x)
     gate = self.inst_norm2(gate)
-
-    return h * tf.sigmoid(gate)
+    
+    if self.residual:
+      x = self.identity(x)
+      return x + h*tf.sigmoid(gate)
+    else:
+      return h*tf.sigmoid(gate)
 
 
 class UpSampleLayer(tf.keras.Model):
-  def __init__(self, filters, kernel_size, strides, padding):
+  def __init__(self, filters, kernel_size, strides, padding, residual=False):
     super(UpSampleLayer, self).__init__()
     self.conv_transpose1 = tf.keras.layers.Conv2DTranspose(
         filters, kernel_size, strides, padding)
     self.inst_norm1 = tfa.layers.InstanceNormalization()
-
     self.conv_transpose2 = tf.keras.layers.Conv2DTranspose(
         filters, kernel_size, strides, padding)
     self.inst_norm2 = tfa.layers.InstanceNormalization()
+    self.residual = residual
+    if residual:
+      self.identity = tf.keras.layers.Conv2DTranspose(filters, (1,1), strides, padding)
 
 
   def call(self, x):
@@ -40,7 +48,11 @@ class UpSampleLayer(tf.keras.Model):
     gate = self.conv_transpose2(x)
     gate = self.inst_norm2(gate)
 
-    return h * tf.sigmoid(gate)
+    if self.residual:
+      x = self.identity(x)
+      return x + h*tf.sigmoid(gate)
+    else:
+      return h*tf.sigmoid(gate)
 
 
 class AutoEncoder(tf.keras.Model):
@@ -48,16 +60,16 @@ class AutoEncoder(tf.keras.Model):
     super(AutoEncoder, self).__init__()
     self.encoder = tf.keras.Sequential([
         DownSampleLayer(32, (9,4), (1,1), 'same'),
-        DownSampleLayer(64, (8,4), (2,2), 'same'),
-        DownSampleLayer(128, (8,4), (2,2), 'same'),
-        DownSampleLayer(64, (5,4), (1,1), 'same'),
-        DownSampleLayer(5, (5,10), (1,10), 'same')
+        DownSampleLayer(64, (8,4), (2,2), 'same', True),
+        DownSampleLayer(128, (8,4), (2,2), 'same', True),
+        DownSampleLayer(64, (5,4), (1,1), 'same', True),
+        DownSampleLayer(5, (5,10), (1,10), 'same', True)
     ])
     self.decoder = tf.keras.Sequential([
-        UpSampleLayer(64, (5,10), (1,10), 'same'),
-        UpSampleLayer(128, (5,4), (1,1), 'same'),
-        UpSampleLayer(64, (8,4), (2,2), 'same'),
-        UpSampleLayer(32, (8,4), (2,2), 'same'),
+        UpSampleLayer(64, (5,10), (1,10), 'same', True),
+        UpSampleLayer(128, (5,4), (1,1), 'same', True),
+        UpSampleLayer(64, (8,4), (2,2), 'same', True),
+        UpSampleLayer(32, (8,4), (2,2), 'same', True),
         tf.keras.layers.Conv2DTranspose(1, (9,4), (1,1), 'same')
     ])
 
@@ -67,20 +79,24 @@ class AutoEncoder(tf.keras.Model):
     speaker_one_hot = tf.expand_dims(speaker_one_hot, axis=1)
     speaker_one_hot = tf.expand_dims(speaker_one_hot, axis=1)
     speaker_inform = tf.tile(speaker_one_hot,[1,shape[1],shape[2],1])
-    encoder_feature = tf.concat([encoder_feature, speaker_inform], axis=-1)
-    decoder_feature = self.decoder(encoder_feature)
+    encoder_feature_with_speaker = tf.concat([encoder_feature, speaker_inform], axis=-1)
+    decoder_feature = self.decoder(encoder_feature_with_speaker)
     return encoder_feature, decoder_feature
 
 
 class Discriminator(tf.keras.Model):
   def __init__(self, num_speaker=2):
     super(Discriminator, self).__init__()
+    self.conv1 = DownSampleLayer(5, (3,3), (1,1), 'same')
     self.gap = tf.keras.layers.GlobalAvgPool2D()
-    self.dense = tf.keras.layers.Dense(num_speaker)
+    self.dense1 = tf.keras.layers.Dense(5, activation=tf.keras.activations.relu)
+    self.dense2 = tf.keras.layers.Dense(num_speaker)
 
   def call(self, latent):
-    flatten = self.gap(latent)
-    logits = self.dense(flatten)
+    out = self.conv1(latent)
+    out = self.gap(out)
+    out = self.dense1(out)
+    logits = self.dense2(out)
     return logits
 
 def main():
