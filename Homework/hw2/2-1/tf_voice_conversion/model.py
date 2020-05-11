@@ -72,12 +72,12 @@ class AutoEncoder(tf.keras.Model):
         UpSampleLayer(32, (8,4), (2,2), 'same', True),
         tf.keras.layers.Conv2DTranspose(1, (9,4), (1,1), 'same')
     ])
-    self.embeded = tf.keras.layers.Embedding(speaker_count, 10)
+    self.embeded = tf.keras.layers.Embedding(speaker_count, 30)
 
   def call(self, x, speaker):
     encoder_feature = self.encoder(x)
     speaker_embeded = self.embeded(speaker)
-    speaker_embeded = tf.reshape(speaker_embeded, [-1,2,5])
+    speaker_embeded = tf.reshape(speaker_embeded, [-1,6,5])
     speaker_embeded = speaker_embeded[:,tf.newaxis,:,:]
     speaker_embeded = tf.tile( speaker_embeded,
         [1,tf.shape(encoder_feature)[1],1,1] )
