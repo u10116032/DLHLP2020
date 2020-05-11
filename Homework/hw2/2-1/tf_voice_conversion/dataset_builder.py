@@ -25,7 +25,6 @@ def build(filepaths, batch=16, prefetch=4):
     mel = tf.reshape(mel, mel_shape)
     mel = tf.pad(mel, [[0,pad_size],[0,0]])
 
-    print(tf.shape(mag)[0])
     mag = tf.slice(mag, [0,0], [tf.math.minimum(tf.shape(mag)[0], 512), tf.shape(mag)[1]])
     mel = tf.slice(mel, [0,0], [tf.math.minimum(tf.shape(mel)[0], 512), tf.shape(mel)[1]])
 
@@ -67,6 +66,6 @@ if __name__ == '__main__':
     sample_id = feature['sample_id'].numpy()
     filename = feature['filename'].numpy()
     mel = feature['mel'].numpy()
-    print(filename)
+    print(speaker_id.shape)
     for m in mel:
       print(m.shape)

@@ -19,7 +19,7 @@ class DownSampleLayer(tf.keras.Model):
 
     gate = self.conv2(x)
     gate = self.inst_norm2(gate)
-    
+
     if self.residual:
       x = self.identity(x)
       return x + h*tf.sigmoid(gate)
@@ -56,7 +56,7 @@ class UpSampleLayer(tf.keras.Model):
 
 
 class AutoEncoder(tf.keras.Model):
-  def __init__(self):
+  def __init__(self, speaker_count=2):
     super(AutoEncoder, self).__init__()
     self.encoder = tf.keras.Sequential([
         DownSampleLayer(32, (9,4), (1,1), 'same'),
@@ -72,14 +72,16 @@ class AutoEncoder(tf.keras.Model):
         UpSampleLayer(32, (8,4), (2,2), 'same', True),
         tf.keras.layers.Conv2DTranspose(1, (9,4), (1,1), 'same')
     ])
+    self.embeded = tf.keras.layers.Embedding(speaker_count, 10)
 
-  def call(self, x, speaker_one_hot):
+  def call(self, x, speaker):
     encoder_feature = self.encoder(x)
-    shape = tf.shape(encoder_feature)
-    speaker_one_hot = tf.expand_dims(speaker_one_hot, axis=1)
-    speaker_one_hot = tf.expand_dims(speaker_one_hot, axis=1)
-    speaker_inform = tf.tile(speaker_one_hot,[1,shape[1],shape[2],1])
-    encoder_feature_with_speaker = tf.concat([encoder_feature, speaker_inform], axis=-1)
+    speaker_embeded = self.embeded(speaker)
+    speaker_embeded = tf.reshape(speaker_embeded, [-1,2,5])
+    speaker_embeded = speaker_embeded[:,tf.newaxis,:,:]
+    speaker_embeded = tf.tile( speaker_embeded,
+        [1,tf.shape(encoder_feature)[1],1,1] )
+    encoder_feature_with_speaker = encoder_feature + speaker_embeded
     decoder_feature = self.decoder(encoder_feature_with_speaker)
     return encoder_feature, decoder_feature
 
@@ -101,7 +103,7 @@ class Discriminator(tf.keras.Model):
 
 def main():
   mel_feature = np.ones((4, 512, 240, 1), dtype=np.float32)
-  speaker_one_hot = np.eye(2)[[0,0,0,0]]
+  speaker_one_hot = np.asarray([0,0,0,0])
   print(mel_feature.shape)
   # print(mel_feature)
   auto_encoder = AutoEncoder()

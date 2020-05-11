@@ -35,19 +35,21 @@ def main():
                               auto_encoder_optimizer=auto_encoder_optimizer,
                               discriminator_optimizer=discriminator_optimizer )
 
-  def train_step(origin, speaker_one_hot, target_wav, epoch_rate):
+  def train_step(origin, speaker_id, target_wav, epoch_rate):
     with tf.GradientTape() as tape:
-      encoded, decoded = auto_encoder(origin, speaker_one_hot)
+      encoded, decoded = auto_encoder(origin, speaker_id-1)
       logits = discriminator(encoded)
+      speaker_one_hot = tf.one_hot(speaker_id, 2)
       d_loss = crossentropy_loss(speaker_one_hot, logits)
       discriminator_gradients = tape.gradient(d_loss,
         discriminator.trainable_variables)
       discriminator_optimizer.apply_gradients(
         zip(discriminator_gradients, discriminator.trainable_variables))
     with tf.GradientTape() as tape:
-      encoded, decoded = auto_encoder(origin, speaker_one_hot)
+      encoded, decoded = auto_encoder(origin, speaker_id-1)
       logits = discriminator(encoded)
       rec_loss = huber_loss(decoded, target_wav)
+      speaker_one_hot = tf.one_hot(speaker_id, 2)
       d_loss = crossentropy_loss(speaker_one_hot, logits)
       auto_encoder_loss = rec_loss + (-0.01) * d_loss
       auto_encoder_gradients = tape.gradient(auto_encoder_loss,
@@ -65,7 +67,7 @@ def main():
     ckpt.restore(latest_ckpt).assert_consumed()
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
-  EPOCHS = 10000
+  EPOCHS = 100
   for epoch in range(EPOCHS):
     # Reset the metrics at the start of the next epoch
     auto_encoder_metric.reset_states()
@@ -73,14 +75,11 @@ def main():
 
     for feature in tqdm(dataset):
       speaker_id = feature['speaker_id']
-      speaker_one_hot = tf.one_hot(speaker_id, 2)
       mel = feature['mel']
       mel = tf.expand_dims(mel, axis=-1)
-      try:
-        train_step(mel, speaker_one_hot, mel, epoch/EPOCHS)
-      except Exception as e:
-        print(e)
-        print(mel.shape)
+
+      train_step(mel, speaker_id, mel, epoch/EPOCHS)
+
     ckpt_mgr.save()
     template = 'Epoch {}, AE Loss: {}, D Loss: {}'
     log_msg = template.format( epoch+1,
