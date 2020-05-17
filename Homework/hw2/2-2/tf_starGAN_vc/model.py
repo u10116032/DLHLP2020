@@ -100,7 +100,7 @@ class Discriminator(tf.keras.Model):
 
 
 class DomainClassifier(tf.keras.Model):
-  def __init__(self):
+  def __init__(self, speakers=2):
     super(DomainClassifier, self).__init__()
     self.down = tf.keras.Sequential([
         DownSampleLayer(8, (4,4), (2,2), 'same'),
@@ -108,7 +108,7 @@ class DomainClassifier(tf.keras.Model):
         DownSampleLayer(32, (4,4), (2,2), 'same'),
         DownSampleLayer(16, (3,4), (1,2), 'same')
     ])
-    self.conv = tf.keras.layers.Conv2D(4, (1,4), (1,2), 'same')
+    self.conv = tf.keras.layers.Conv2D(speakers, (1,4), (1,2), 'same')
     self.pool = tf.keras.layers.GlobalAveragePooling2D()
 
   def call(self, x):

@@ -48,7 +48,7 @@ def main():
       cycle_loss = l1_loss(real_x, reconst_x)
       cls_loss = ce_loss(real_y_attr, fake_y_c)
       identity_loss = l1_loss(real_x, fake_x)
-      loss = gan_loss + 3 * cycle_loss + 2 * cls_loss + 2 * identity_loss
+      loss = gan_loss + 3 * cycle_loss + 3 * cls_loss +  * identity_loss
       G_gradients = tape.gradient(loss, G.trainable_variables)
       G_optimizer.apply_gradients(zip(G_gradients, G.trainable_variables))
     G_metric(loss)
