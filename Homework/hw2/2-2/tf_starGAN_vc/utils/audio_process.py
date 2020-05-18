@@ -61,7 +61,7 @@ def wav2mfcc(filepath):
   return:
     mfcc with shape (n_mfcc, T) and type np.float
   '''
-  y, sr = librosa.load(filepath, sr=sampling_rate, mono=False)
+  y, sr = librosa.load(filepath, sr=sampling_rate, mono=True)
   y, _ = librosa.effects.trim(y)
   mfcc = librosa.feature.mfcc(y=y, sr=sampling_rate, n_mfcc=n_mels,
       hop_length=hop_length, n_fft=n_fft)

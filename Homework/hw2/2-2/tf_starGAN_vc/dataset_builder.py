@@ -8,7 +8,9 @@ def build(filepaths, batch=16, prefetch=4):
     'mel': tf.io.FixedLenFeature([], tf.string),
     'mel_shape': tf.io.FixedLenFeature([2,], tf.int64),
     'mag': tf.io.FixedLenFeature([], tf.string),
-    'mag_shape': tf.io.FixedLenFeature([2,], tf.int64)
+    'mag_shape': tf.io.FixedLenFeature([2,], tf.int64),
+    'mfcc': tf.io.FixedLenFeature([], tf.string),
+    'mfcc_shape': tf.io.FixedLenFeature([2,], tf.int64)
   }
   def _parse_feature(example_proto):
     feature = tf.io.parse_single_example(example_proto, feature_desciption)
@@ -24,11 +26,17 @@ def build(filepaths, batch=16, prefetch=4):
     mel = tf.io.decode_raw(feature['mel'], tf.float32)
     mel = tf.reshape(mel, mel_shape)
     mel = tf.pad(mel, [[0,0],[0,pad_size]])
+    mfcc_shape = feature['mfcc_shape']
+    mfcc = tf.io.decode_raw(feature['mfcc'], tf.float32)
+    mfcc = tf.reshape(mfcc, mfcc_shape)
+    mfcc = tf.pad(mfcc, [[0,0],[0,pad_size]])
 
     mag = tf.slice(mag, [0,0],
         [tf.shape(mag)[0], tf.math.minimum(tf.shape(mag)[1], 512)])
     mel = tf.slice(mel, [0,0],
         [tf.shape(mel)[0], tf.math.minimum(tf.shape(mel)[1], 512), ])
+    mfcc = tf.slice(mfcc, [0,0],
+        [tf.shape(mfcc)[0], tf.math.minimum(tf.shape(mfcc)[1], 512), ])
 
     tensor_dict = {}
     tensor_dict['speaker_id'] = speaker_id
@@ -36,6 +44,7 @@ def build(filepaths, batch=16, prefetch=4):
     tensor_dict['filename'] = filename
     tensor_dict['mag'] = mag
     tensor_dict['mel'] = mel
+    tensor_dict['mfcc'] = mfcc
     return tensor_dict
 
   pad_shape = {}
@@ -44,6 +53,7 @@ def build(filepaths, batch=16, prefetch=4):
   pad_shape['filename'] = []
   pad_shape['mag'] = [None, None]
   pad_shape['mel'] = [None, None]
+  pad_shape['mfcc'] = [None, None]
 
   dataset = tf.data.Dataset.from_tensor_slices(filepaths)
   dataset = dataset.interleave(lambda x:
@@ -67,7 +77,7 @@ if __name__ == '__main__':
     speaker_id = feature['speaker_id'].numpy()
     sample_id = feature['sample_id'].numpy()
     filename = feature['filename'].numpy()
-    mel = feature['mel'].numpy()
+    mfcc = feature['mfcc'].numpy()
     print(speaker_id.shape)
-    for m in mel:
+    for m in mfcc:
       print(m.shape)

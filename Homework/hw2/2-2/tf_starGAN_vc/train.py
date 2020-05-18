@@ -19,15 +19,15 @@ def main():
   args = parser.parse_args()
   filenames = glob.glob(os.path.join(args.dataset,'*.tfrecord'))
   speaker_count = len(filenames)
-  x_dataset = dataset_builder.build(filenames, prefetch=64, batch=8)
-  y_dataset = dataset_builder.build(filenames, prefetch=64, batch=8)
+  x_dataset = dataset_builder.build(filenames, prefetch=128, batch=4)
+  y_dataset = dataset_builder.build(filenames, prefetch=128, batch=4)
   D, G, C = Discriminator(), Generator(), DomainClassifier()
-  G_optimizer = tf.keras.optimizers.Adam(0.0001)
-  D_optimizer = tf.keras.optimizers.Adam(0.0001)
-  C_optimizer = tf.keras.optimizers.Adam(0.0001)
+  G_optimizer = tf.keras.optimizers.Adam(0.0001, beta_1=0.5, beta_2=0.999)
+  D_optimizer = tf.keras.optimizers.Adam(0.0001, beta_1=0.5, beta_2=0.999)
+  C_optimizer = tf.keras.optimizers.Adam(0.0001, beta_1=0.5, beta_2=0.999)
 
   ce_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False,
-      label_smoothing=0.2)
+      label_smoothing=0.1)
   # huber_loss = tf.keras.losses.Huber()
   l1_loss = tf.keras.losses.MeanAbsoluteError()
 
@@ -48,9 +48,13 @@ def main():
       cycle_loss = l1_loss(real_x, reconst_x)
       cls_loss = ce_loss(real_y_attr, fake_y_c)
       identity_loss = l1_loss(real_x, fake_x)
-      loss = gan_loss + 3 * cycle_loss + 3 * cls_loss + 1 * identity_loss
+      loss = gan_loss + 2 * cycle_loss + cls_loss + 2 * identity_loss
       G_gradients = tape.gradient(loss, G.trainable_variables)
       G_optimizer.apply_gradients(zip(G_gradients, G.trainable_variables))
+    tf.summary.scalar('loss_G_gan_loss', gan_loss, step=G_optimizer.iterations)
+    tf.summary.scalar('loss_G_cycle_loss', cycle_loss, step=G_optimizer.iterations)
+    tf.summary.scalar('loss_G_cls_loss', cls_loss, step=G_optimizer.iterations)
+    tf.summary.scalar('loss_G_identity_loss', identity_loss, step=G_optimizer.iterations)
     G_metric(loss)
     return loss
 
@@ -92,7 +96,7 @@ def main():
     ckpt.restore(latest_ckpt).assert_consumed()
   ckpt_mgr = tf.train.CheckpointManager(ckpt, args.logdir, max_to_keep=5)
 
-  EPOCHS = 100
+  EPOCHS = 3000
   with summary_writer.as_default():
     for epoch in range(EPOCHS):
       G_metric.reset_states()
@@ -103,10 +107,11 @@ def main():
         x_feature, y_feature = features
         x_id = np.asarray(x_feature['speaker_id'], dtype=np.int32)
         x_id_onehot = tf.one_hot(x_id, speaker_count)
-        x = tf.expand_dims(x_feature['mel'], axis=-1)
+        x = tf.expand_dims(x_feature['mfcc'], axis=-1)
+
         y_id = np.asarray(y_feature['speaker_id'], dtype=np.int32)
         y_id_onehot = tf.one_hot(y_id, speaker_count)
-        y = tf.expand_dims(y_feature['mel'], axis=-1)
+        y = tf.expand_dims(y_feature['mfcc'], axis=-1)
         loss_D = train_D(x, x_id_onehot, y, y_id_onehot)
         loss_C = train_C(x, x_id_onehot, y, y_id_onehot)
         loss_G = train_G(x, x_id_onehot, y, y_id_onehot)
