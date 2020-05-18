@@ -95,7 +95,7 @@ class Discriminator(tf.keras.Model):
     out = tf.concat([out, c_tile], -1)
     out = self.conv(out)
     out = self.pool(out)
-    out = tf.nn.sigmoid(out)
+    # out = tf.nn.sigmoid(out)
     return out
 
 

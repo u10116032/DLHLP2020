@@ -44,7 +44,8 @@ def main():
       fake_y_d = D(fake_y, real_y_attr)
       fake_y_c = C(fake_y)
       fake_x = G(real_x, real_x_attr)
-      gan_loss = tf.reduce_mean(-1 * ops.safe_log(fake_y_d))
+      # gan_loss = tf.reduce_mean(-1 * ops.safe_log(fake_y_d))
+      gan_loss = tf.reduce_mean(-1 * fake_y_d)
       cycle_loss = l1_loss(real_x, reconst_x)
       cls_loss = ce_loss(real_y_attr, fake_y_c)
       identity_loss = l1_loss(real_x, fake_x)
@@ -63,9 +64,18 @@ def main():
       fake_y = G(real_x, real_y_attr)
       fake_y_d = D(fake_y, real_y_attr)
       real_y_d = D(real_y, real_y_attr)
-      gan_loss = tf.reduce_mean(
-          -1 * ops.safe_log(real_y_d) + (-1) * ops.safe_log(1 - fake_y_d))
-      loss = gan_loss
+      # gan_loss = tf.reduce_mean(
+      #     -1 * ops.safe_log(real_y_d) + (-1) * ops.safe_log(1 - fake_y_d))
+      gan_loss = tf.reduce_mean(fake_y_d) - tf.reduce_mean(real_y_d)
+
+      with tf.GradientTape() as t:
+          t.watch(fake_y)
+          pred = D(fake_y, real_y_attr)
+      grad = t.gradient(pred, [fake_y])[0]
+      slopes = tf.sqrt(tf.reduce_sum(tf.square(grad)))
+      gradient_penalty = tf.reduce_mean((slopes - 1.)**2)
+
+      loss = gan_loss + 5 * gradient_penalty
       D_gradients = tape.gradient(loss, D.trainable_variables)
       D_optimizer.apply_gradients(zip(D_gradients, D.trainable_variables))
     D_metric(loss)
