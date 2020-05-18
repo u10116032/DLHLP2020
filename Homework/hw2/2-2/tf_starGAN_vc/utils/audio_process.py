@@ -2,9 +2,9 @@ import librosa
 import numpy as np
 import os
 
-sampling_rate = 16000 # Sampling rate.
-n_fft = 1024 # fft points (samples)
-frame_shift = 0.0125 # seconds
+sampling_rate = 22050 # Sampling rate.
+n_fft = 2048 # fft points (samples)
+frame_shift = 0.005 # seconds
 frame_length = 0.05 # seconds
 hop_length = int(sampling_rate * frame_shift) # samples
 win_length = int(sampling_rate * frame_length) # samples
@@ -54,6 +54,33 @@ def melspectrogram2wav(mel):
                                                hop_length=hop_length,
                                                win_length=win_length )
 
+
+def wav2mfcc(filepath):
+  '''
+  Generate MFCC in mono.
+  return:
+    mfcc with shape (n_mfcc, T) and type np.float
+  '''
+  y, sr = librosa.load(filepath, sr=sampling_rate, mono=False)
+  y, _ = librosa.effects.trim(y)
+  mfcc = librosa.feature.mfcc(y=y, sr=sampling_rate, n_mfcc=n_mels,
+      hop_length=hop_length, n_fft=n_fft)
+  return mfcc
+
+
+def mfcc2wav(mfcc):
+  '''
+  Invert mfcc to wav
+  args:
+    mel: shape (n_mels, T)
+  return:
+    wav: shape (T*sampling_rate + T*hop_length,)
+  '''
+  wav = librosa.feature.inverse.mfcc_to_audio(mfcc, sr=sampling_rate,
+      n_mels=n_mels, hop_length=hop_length, n_fft=n_fft)
+  return wav
+
+
 def write_wav(wav, filename=None):
   '''
   dump wav file
@@ -71,9 +98,11 @@ def write_wav(wav, filename=None):
 
 if __name__ == '__main__':
   import sys
-  mag, mel = wav2spectrogram(sys.argv[1])
-  print('mag.shape: ', mag.shape)
-  print('mel.shape: ', mel.shape)
-  reconstructed_wav = melspectrogram2wav(mel)
-  print(reconstructed_wav.shape)
+  # mag, mel = wav2spectrogram(sys.argv[1])
+  # print('mag.shape: ', mag.shape)
+  # print('mel.shape: ', mel.shape)
+  # reconstructed_wav = melspectrogram2wav(mel)
+  # print(reconstructed_wav.shape)
+  mfcc = wav2mfcc(sys.argv[1])
+  reconstructed_wav = mfcc2wav(mfcc)
   print(write_wav(reconstructed_wav))
