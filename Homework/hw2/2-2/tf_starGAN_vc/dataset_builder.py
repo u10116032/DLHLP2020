@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-def build(filepaths, batch=16, prefetch=4):
+def build(filepaths, batch=16, prefetch=4, epoch=-1):
   feature_desciption = {
     'speaker_id': tf.io.FixedLenFeature([], tf.int64),
     'sample_id': tf.io.FixedLenFeature([], tf.int64),
@@ -60,7 +60,7 @@ def build(filepaths, batch=16, prefetch=4):
       tf.data.TFRecordDataset(x).map(_parse_feature,
       num_parallel_calls=len(filepaths)),
       cycle_length=8, block_length=8)
-  # dataset = dataset.repeat(-1)
+  dataset = dataset.repeat(epoch)
   dataset = dataset.shuffle(buffer_size=batch * prefetch)
   dataset = dataset.padded_batch(batch_size=batch, padded_shapes=pad_shape,
       drop_remainder=True)
