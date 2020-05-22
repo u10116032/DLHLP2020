@@ -1,6 +1,7 @@
 import librosa
 import numpy as np
 import os
+import pyworld
 
 sampling_rate = 22050 # Sampling rate.
 n_fft = 2048 # fft points (samples)
@@ -96,6 +97,36 @@ def write_wav(wav, filename=None):
   return os.path.abspath(filename)
 
 
+def wav2mcep(filepath):
+    '''
+    cal mcep given wav singnal
+
+    return:
+      f0: shape [ T, ]
+      ap: shape [ T, sampling_rate/2 + 1 ]
+      sp: shape [ T, sampling_rate/2 + 1 ]
+      coded_sp: shape (n_mels x T)
+    '''
+    y, sr = librosa.load(filepath, sr=sampling_rate)
+    y, _ = librosa.effects.trim(y)
+    y = np.asarray(y, dtype=np.double)
+
+    f0, timeaxis = pyworld.harvest(y, sr)
+    sp = pyworld.cheaptrick(y, f0, timeaxis, sampling_rate, fft_size=n_fft)
+    ap = pyworld.d4c(y, f0, timeaxis, sampling_rate, fft_size=n_fft)
+    mcep = pyworld.code_spectral_envelope(sp, sampling_rate, n_mels)
+
+    mcep = mcep.T # dim x n
+
+    return f0, ap, sp, mcep
+
+def mcep2wav(mcep, f0, ap):
+  decoded_sp = pyworld.decode_spectral_envelope(mcep, sampling_rate,
+      fft_size=n_fft)
+  wav = pyworld.synthesize(f0, decoded_sp, ap, sampling_rate)
+  return wav
+
+
 if __name__ == '__main__':
   import sys
   # mag, mel = wav2spectrogram(sys.argv[1])
@@ -103,6 +134,15 @@ if __name__ == '__main__':
   # print('mel.shape: ', mel.shape)
   # reconstructed_wav = melspectrogram2wav(mel)
   # print(reconstructed_wav.shape)
-  mfcc = wav2mfcc(sys.argv[1])
-  reconstructed_wav = mfcc2wav(mfcc)
+  # mfcc = wav2mfcc(sys.argv[1])
+  # reconstructed_wav = mfcc2wav(mfcc)
+  # print(write_wav(reconstructed_wav))
+  # mfcc = wav2mfcc(sys.argv[1])
+  # print(mfcc.shape)
+  f0, ap, sp, mcep = wav2mcep(sys.argv[1])
+  reconstructed_wav = mcep2wav(mcep.T, f0, ap)
+  print(f0.shape)
+  print(ap.shape)
+  print(sp.shape)
+  print(mcep.shape)
   print(write_wav(reconstructed_wav))
