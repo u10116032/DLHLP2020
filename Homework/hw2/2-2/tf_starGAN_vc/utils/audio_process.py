@@ -11,6 +11,7 @@ hop_length = int(sampling_rate * frame_shift) # samples
 win_length = int(sampling_rate * frame_length) # samples
 n_mels = 36 # Number of Mel banks to generate
 use_log_magnitude = True # if False, use magnitude
+preemphasis = 0.97
 
 
 def wav2spectrogram(filepath):
@@ -25,6 +26,7 @@ def wav2spectrogram(filepath):
 
   y, sr = librosa.load(filepath, sr=sampling_rate)
   y, _ = librosa.effects.trim(y)
+  # y = np.append(y[0], y[1:]-preemphasis*y[:-1])
 
   # stft. D: (1+n_fft//2, T)
   D = librosa.stft( y=y,
@@ -64,6 +66,7 @@ def wav2mfcc(filepath):
   '''
   y, sr = librosa.load(filepath, sr=sampling_rate, mono=True)
   y, _ = librosa.effects.trim(y)
+  # y = np.append(y[0], y[1:]-preemphasis*y[:-1])
   mfcc = librosa.feature.mfcc(y=y, sr=sampling_rate, n_mfcc=n_mels,
       hop_length=hop_length, n_fft=n_fft)
   return mfcc

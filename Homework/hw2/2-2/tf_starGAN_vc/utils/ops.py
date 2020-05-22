@@ -19,7 +19,8 @@ def cosine_lr( global_step,
   learning_rate = 0.5 * learning_rate_base * (1 + tf.math.cos(np.pi*decay_ratio))
   if warmup_steps > 0:
     slope = (learning_rate_base - warmup_learning_rate) / warmup_steps
+    warmup_rate = slope * global_step + warmup_learning_rate
     learning_rate = tf.where( global_step < warmup_steps,
-                              slope,
+                              warmup_rate,
                               learning_rate)
   return learning_rate

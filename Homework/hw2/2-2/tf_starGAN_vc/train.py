@@ -15,8 +15,8 @@ parser.add_argument('--dataset', help='Path to dataset folder',
     required=True)
 parser.add_argument('--logdir', help='Log Path', default='./ckpt')
 
-learning_rate = 0.001
-total_steps = 75000
+learning_rate = 0.002
+total_steps = 150000
 warmup_learning_rate = 0.0
 warmup_steps = 1000
 
@@ -24,8 +24,8 @@ def main():
   args = parser.parse_args()
   filenames = glob.glob(os.path.join(args.dataset,'*.tfrecord'))
   speaker_count = len(filenames)
-  x_dataset = dataset_builder.build(filenames, prefetch=128, batch=4)
-  y_dataset = dataset_builder.build(filenames, prefetch=128, batch=4)
+  x_dataset = dataset_builder.build(filenames, prefetch=128, batch=8)
+  y_dataset = dataset_builder.build(filenames, prefetch=128, batch=8)
   D, G, C = Discriminator(), Generator(), DomainClassifier()
   G_lr = tf.Variable(0.0, dtype=tf.float64)
   G_optimizer = tf.keras.optimizers.Adam(G_lr, beta_1=0.5, beta_2=0.999)
@@ -37,8 +37,7 @@ def main():
   # D_optimizer = tf.keras.optimizers.SGD(0.0001)
   # C_optimizer = tf.keras.optimizers.SGD(0.0001)
 
-  ce_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False,
-      label_smoothing=0.1)
+  ce_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
   # huber_loss = tf.keras.losses.Huber()
   l1_loss = tf.keras.losses.MeanAbsoluteError()
 
@@ -48,7 +47,7 @@ def main():
 
   summary_writer = tf.summary.create_file_writer(args.logdir)
 
-  def train_G(real_x, real_x_attr, real_y, real_y_attr):
+  def train_G(real_x, real_x_attr, real_y, real_y_attr, step):
     with tf.GradientTape() as tape:
       fake_y = G(real_x, real_y_attr, True)
       reconst_x = G(fake_y, real_x_attr, True)
@@ -60,11 +59,11 @@ def main():
       cycle_loss = l1_loss(real_x, reconst_x)
       cls_loss = ce_loss(real_y_attr, fake_y_c)
       identity_loss = l1_loss(real_x, fake_x)
-      loss = gan_loss + 2 * cycle_loss + cls_loss + 2 * identity_loss
+      loss = gan_loss + 10 * cycle_loss + 3 * cls_loss + 5 * identity_loss
       G_gradients = tape.gradient(loss, G.trainable_variables)
       G_optimizer.apply_gradients(zip(G_gradients, G.trainable_variables))
-    G_lr.assign(ops.cosine_lr( G_optimizer.iterations, learning_rate, 
-                               total_steps, warmup_learning_rate, warmup_steps))
+    G_lr.assign(ops.cosine_lr( step, learning_rate, total_steps, 
+                               warmup_learning_rate, warmup_steps))
     tf.summary.scalar('loss_G/gan_loss', gan_loss, step=G_optimizer.iterations)
     tf.summary.scalar('loss_G/cycle_loss', cycle_loss, step=G_optimizer.iterations)
     tf.summary.scalar('loss_G/cls_loss', cls_loss, step=G_optimizer.iterations)
@@ -72,7 +71,7 @@ def main():
     G_metric(loss)
     return loss
 
-  def train_D(real_x, real_x_attr, real_y, real_y_attr):
+  def train_D(real_x, real_x_attr, real_y, real_y_attr, step):
     with tf.GradientTape() as tape:
       fake_y = G(real_x, real_y_attr, False)
       fake_y_d = D(fake_y, real_y_attr, True)
@@ -93,22 +92,22 @@ def main():
       loss = gan_loss # + 10 * gradient_penalty
       D_gradients = tape.gradient(loss, D.trainable_variables)
       D_optimizer.apply_gradients(zip(D_gradients, D.trainable_variables))
-    D_lr.assign(ops.cosine_lr( D_optimizer.iterations, learning_rate, 
-                               total_steps, warmup_learning_rate, warmup_steps))
+    D_lr.assign(ops.cosine_lr( step, learning_rate, total_steps, 
+                               warmup_learning_rate, warmup_steps))
     tf.summary.scalar('loss_D/gan_loss', gan_loss, step=D_optimizer.iterations)
     tf.summary.scalar('loss_D/negative_critic_loss', -1*gan_loss, step=D_optimizer.iterations)
     tf.summary.scalar('loss_D/gp', gradient_penalty, step=D_optimizer.iterations)
     D_metric(loss)
     return loss
 
-  def train_C(real_x, real_x_attr, real_y, real_y_attr):
+  def train_C(real_x, real_x_attr, real_y, real_y_attr, step):
     with tf.GradientTape() as tape:
       real_y_c = C(real_y, True)
       loss = ce_loss(real_y_attr, real_y_c)
       C_gradients = tape.gradient(loss, C.trainable_variables)
       C_optimizer.apply_gradients(zip(C_gradients, C.trainable_variables))
-    C_lr.assign(ops.cosine_lr( C_optimizer.iterations, learning_rate, 
-                               total_steps, warmup_learning_rate, warmup_steps))
+    C_lr.assign(ops.cosine_lr( step, learning_rate, total_steps, 
+                               warmup_learning_rate, warmup_steps))
     C_metric(loss)
     return loss
 
@@ -137,18 +136,18 @@ def main():
     for features in tqdm(zip(x_dataset, y_dataset), total=total_steps):
       x_feature, y_feature = features
       x_id = np.asarray(x_feature['speaker_id'], dtype=np.int32)
-      x_id_onehot = tf.one_hot(x_id, speaker_count)
+      x_id_onehot = tf.one_hot(x_id - 1, speaker_count)
       x = tf.expand_dims(x_feature['mfcc'], axis=-1)
-
       y_id = np.asarray(y_feature['speaker_id'], dtype=np.int32)
-      y_id_onehot = tf.one_hot(y_id, speaker_count)
+      y_id_onehot = tf.one_hot(y_id - 1, speaker_count)
       y = tf.expand_dims(y_feature['mfcc'], axis=-1)
+
       if (step+1) % 2 == 0:
-        loss_G = train_G(x, x_id_onehot, y, y_id_onehot)
+        loss_G = train_G(x, x_id_onehot, y, y_id_onehot, step)
         tf.summary.scalar('loss_G', loss_G, step=G_optimizer.iterations)
       else:
-        loss_D = train_D(x, x_id_onehot, y, y_id_onehot)
-        loss_C = train_C(x, x_id_onehot, y, y_id_onehot)
+        loss_D = train_D(x, x_id_onehot, y, y_id_onehot, step)
+        loss_C = train_C(x, x_id_onehot, y, y_id_onehot, step)
         tf.summary.scalar('loss_D', loss_D, step=D_optimizer.iterations)
         tf.summary.scalar('loss_C', loss_C, step=C_optimizer.iterations)
       if (step+1)%100 == 0:
