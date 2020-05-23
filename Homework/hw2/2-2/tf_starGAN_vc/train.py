@@ -1,4 +1,5 @@
 from model import Generator, Discriminator, DomainClassifier
+from utils.mcep_normalizer import McepNormalizer
 from utils import audio_process
 from utils import ops
 from tqdm import tqdm
@@ -37,7 +38,8 @@ def main():
   # D_optimizer = tf.keras.optimizers.SGD(0.0001)
   # C_optimizer = tf.keras.optimizers.SGD(0.0001)
 
-  ce_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False)
+  ce_loss = tf.keras.losses.CategoricalCrossentropy(from_logits=False, 
+      label_smoothing=0.1)
   # huber_loss = tf.keras.losses.Huber()
   l1_loss = tf.keras.losses.MeanAbsoluteError()
 
@@ -59,7 +61,7 @@ def main():
       cycle_loss = l1_loss(real_x, reconst_x)
       cls_loss = ce_loss(real_y_attr, fake_y_c)
       identity_loss = l1_loss(real_x, fake_x)
-      loss = gan_loss + 10 * cycle_loss + 3 * cls_loss + 5 * identity_loss
+      loss = gan_loss + 10 * cycle_loss + cls_loss + 5 * identity_loss
       G_gradients = tape.gradient(loss, G.trainable_variables)
       G_optimizer.apply_gradients(zip(G_gradients, G.trainable_variables))
     G_lr.assign(ops.cosine_lr( step, learning_rate, total_steps, 
@@ -133,14 +135,19 @@ def main():
     C_metric.reset_states()
 
     step = 0
+    mcep_normalizer = McepNormalizer('./train/norm_dict.pkl')
     for features in tqdm(zip(x_dataset, y_dataset), total=total_steps):
       x_feature, y_feature = features
+
       x_id = np.asarray(x_feature['speaker_id'], dtype=np.int32)
       x_id_onehot = tf.one_hot(x_id - 1, speaker_count)
-      x = tf.expand_dims(x_feature['mfcc'], axis=-1)
+      x = mcep_normalizer.batch_mcep_norm(x_feature['mcep'], x_id)
+      x = tf.expand_dims(x, axis=-1)
+
       y_id = np.asarray(y_feature['speaker_id'], dtype=np.int32)
       y_id_onehot = tf.one_hot(y_id - 1, speaker_count)
-      y = tf.expand_dims(y_feature['mfcc'], axis=-1)
+      y = mcep_normalizer.batch_mcep_norm(y_feature['mcep'], y_id)
+      y = tf.expand_dims(y, axis=-1)
 
       if (step+1) % 2 == 0:
         loss_G = train_G(x, x_id_onehot, y, y_id_onehot, step)

@@ -10,7 +10,9 @@ def build(filepaths, batch=16, prefetch=4, epoch=-1):
     'mag': tf.io.FixedLenFeature([], tf.string),
     'mag_shape': tf.io.FixedLenFeature([2,], tf.int64),
     'mfcc': tf.io.FixedLenFeature([], tf.string),
-    'mfcc_shape': tf.io.FixedLenFeature([2,], tf.int64)
+    'mfcc_shape': tf.io.FixedLenFeature([2,], tf.int64),
+    'mcep': tf.io.FixedLenFeature([], tf.string),
+    'mcep_shape': tf.io.FixedLenFeature([2,], tf.int64)
   }
   def _parse_feature(example_proto):
     feature = tf.io.parse_single_example(example_proto, feature_desciption)
@@ -30,6 +32,10 @@ def build(filepaths, batch=16, prefetch=4, epoch=-1):
     mfcc = tf.io.decode_raw(feature['mfcc'], tf.float32)
     mfcc = tf.reshape(mfcc, mfcc_shape)
     mfcc = tf.pad(mfcc, [[0,0],[0,pad_size]])
+    mcep_shape = feature['mcep_shape']
+    mcep = tf.io.decode_raw(feature['mcep'], tf.float64)
+    mcep = tf.reshape(mcep, mcep_shape)
+    mcep = tf.pad(mcep, [[0,0],[0,pad_size]])
 
     mag = tf.slice(mag, [0,0],
         [tf.shape(mag)[0], tf.math.minimum(tf.shape(mag)[1], 512)])
@@ -37,6 +43,8 @@ def build(filepaths, batch=16, prefetch=4, epoch=-1):
         [tf.shape(mel)[0], tf.math.minimum(tf.shape(mel)[1], 512), ])
     mfcc = tf.slice(mfcc, [0,0],
         [tf.shape(mfcc)[0], tf.math.minimum(tf.shape(mfcc)[1], 512), ])
+    mcep = tf.slice(mcep, [0,0],
+        [tf.shape(mcep)[0], tf.math.minimum(tf.shape(mcep)[1], 512), ])
 
     tensor_dict = {}
     tensor_dict['speaker_id'] = speaker_id
@@ -45,6 +53,7 @@ def build(filepaths, batch=16, prefetch=4, epoch=-1):
     tensor_dict['mag'] = mag
     tensor_dict['mel'] = mel
     tensor_dict['mfcc'] = mfcc
+    tensor_dict['mcep'] = mcep
     return tensor_dict
 
   pad_shape = {}
@@ -54,6 +63,7 @@ def build(filepaths, batch=16, prefetch=4, epoch=-1):
   pad_shape['mag'] = [None, None]
   pad_shape['mel'] = [None, None]
   pad_shape['mfcc'] = [None, None]
+  pad_shape['mcep'] = [None, None]
 
   dataset = tf.data.Dataset.from_tensor_slices(filepaths)
   dataset = dataset.interleave(lambda x:
@@ -77,7 +87,7 @@ if __name__ == '__main__':
     speaker_id = feature['speaker_id'].numpy()
     sample_id = feature['sample_id'].numpy()
     filename = feature['filename'].numpy()
-    mfcc = feature['mfcc'].numpy()
+    mcep = feature['mcep'].numpy()
     print(speaker_id.shape)
-    for m in mfcc:
+    for m in mcep:
       print(m.shape)
