@@ -37,13 +37,35 @@ def build(filepaths, batch=16, prefetch=4, epoch=-1):
     mcep = tf.reshape(mcep, mcep_shape)
     mcep = tf.pad(mcep, [[0,0],[0,pad_size]])
 
-    mag = tf.slice(mag, [0,0],
+    mag_start_idx = tf.cond(
+        tf.math.greater(tf.shape(mag)[1], 512),
+        true_fn=lambda: tf.random.uniform( shape=[],
+            maxval=tf.shape(mag)[1]-512-1, dtype=tf.int32, seed=427 ),
+        false_fn=lambda: 0)
+    mag = tf.slice(mag, [0, mag_start_idx],
         [tf.shape(mag)[0], tf.math.minimum(tf.shape(mag)[1], 512)])
-    mel = tf.slice(mel, [0,0],
+
+    mel_start_idx = tf.cond(tf.math.greater(tf.shape(mel)[1], 512),
+        true_fn=lambda: tf.random.uniform( shape=[],
+            maxval=tf.shape(mel)[1]-512-1, dtype=tf.int32, seed=427 ),
+        false_fn=lambda: 0)
+    mel = tf.slice(mel, [0, mel_start_idx],
         [tf.shape(mel)[0], tf.math.minimum(tf.shape(mel)[1], 512), ])
-    mfcc = tf.slice(mfcc, [0,0],
+
+    mfcc_start_idx = tf.cond(
+        tf.math.greater(tf.shape(mfcc)[1], 512),
+        true_fn=lambda: tf.random.uniform( shape=[],
+            maxval=tf.shape(mfcc)[1]-512-1, dtype=tf.int32, seed=427 ),
+        false_fn=lambda: 0)
+    mfcc = tf.slice(mfcc, [0, mfcc_start_idx],
         [tf.shape(mfcc)[0], tf.math.minimum(tf.shape(mfcc)[1], 512), ])
-    mcep = tf.slice(mcep, [0,0],
+
+    mcep_start_idx = tf.cond(
+        tf.math.greater(tf.shape(mcep)[1], 512),
+        true_fn=lambda: tf.random.uniform( shape=[],
+            maxval=tf.shape(mcep)[1]-512-1, dtype=tf.int32, seed=427 ),
+        false_fn=lambda: 0)
+    mcep = tf.slice(mcep, [0, mcep_start_idx],
         [tf.shape(mcep)[0], tf.math.minimum(tf.shape(mcep)[1], 512), ])
 
     tensor_dict = {}
@@ -87,7 +109,7 @@ if __name__ == '__main__':
     speaker_id = feature['speaker_id'].numpy()
     sample_id = feature['sample_id'].numpy()
     filename = feature['filename'].numpy()
-    mcep = feature['mcep'].numpy()
+    mcep = feature['mel'].numpy()
     print(speaker_id.shape)
     for m in mcep:
       print(m.shape)
