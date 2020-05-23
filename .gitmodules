@@ -4,3 +4,6 @@
 [submodule "Homework/hw2/2-1/Voice-Conversion"]
 	path = Homework/hw2/2-1/Voice-Conversion
 	url = git@github.com:BogiHsu/Voice-Conversion.git
+[submodule "Homework/hw4/4-1/Bert-analysis"]
+	path = Homework/hw4/4-1/Bert-analysis
+	url = git@github.com:aapp1420/BERT-analysis.git
