@@ -20,8 +20,8 @@ def wav2spectrogram(filepath):
   If we do further log and DFT, we can get MFCC.
   return:
     (mag, mel)
-      mag: (T, 1+n_fft//2)
-      mel: (T, n_mels)
+      mag: (1+n_fft//2, T)
+      mel: (n_mels, T)
   '''
 
   y, sr = librosa.load(filepath, sr=sampling_rate)
@@ -39,7 +39,9 @@ def wav2spectrogram(filepath):
 
   # mel spectrogram, mel: (n_mels, T)
   mel = librosa.feature.melspectrogram(S=power, n_mels=n_mels)
-
+  
+  mag = mag.astype(np.float32)
+  mel = mel.astype(np.float32)
   return (mag, mel)
 
 
@@ -51,6 +53,7 @@ def melspectrogram2wav(mel):
   return:
     wav: shape(T*sampling_rate*hop_length,) or ((T-1)*sampling_rate*hop_length,)
   '''
+  mel = mel.astype(np.float32)
   return librosa.feature.inverse.mel_to_audio( mel,
                                                sr=sampling_rate,
                                                n_fft=n_fft,
@@ -62,13 +65,15 @@ def wav2mfcc(filepath):
   '''
   Generate MFCC in mono.
   return:
-    mfcc with shape (n_mfcc, T) and type np.float
+    mfcc with shape (n_mels, T) and type np.float
   '''
   y, sr = librosa.load(filepath, sr=sampling_rate, mono=True)
   y, _ = librosa.effects.trim(y)
   # y = np.append(y[0], y[1:]-preemphasis*y[:-1])
   mfcc = librosa.feature.mfcc(y=y, sr=sampling_rate, n_mfcc=n_mels,
       hop_length=hop_length, n_fft=n_fft)
+
+  mfcc = mfcc.astype(np.float32)
   return mfcc
 
 
@@ -80,6 +85,7 @@ def mfcc2wav(mfcc):
   return:
     wav: shape (T*sampling_rate + T*hop_length,)
   '''
+  mfcc = mfcc.astype(np.float32)
   wav = librosa.feature.inverse.mfcc_to_audio(mfcc, sr=sampling_rate,
       n_mels=n_mels, hop_length=hop_length, n_fft=n_fft)
   return wav
@@ -108,7 +114,7 @@ def wav2mcep(filepath):
       f0: shape [ T, ]
       ap: shape [ T, sampling_rate/2 + 1 ]
       sp: shape [ T, sampling_rate/2 + 1 ]
-      coded_sp: shape (n_mels x T)
+      coded_sp: shape [n_mels, T]
     '''
     y, sr = librosa.load(filepath, sr=sampling_rate)
     y, _ = librosa.effects.trim(y)
@@ -118,12 +124,18 @@ def wav2mcep(filepath):
     sp = pyworld.cheaptrick(y, f0, timeaxis, sampling_rate, fft_size=n_fft)
     ap = pyworld.d4c(y, f0, timeaxis, sampling_rate, fft_size=n_fft)
     mcep = pyworld.code_spectral_envelope(sp, sampling_rate, n_mels)
-
     mcep = mcep.T # dim x n
 
+    f0 = f0.astype(np.float64)
+    sp = sp.astype(np.float64)
+    ap = ap.astype(np.float64)
+    mcep = mcep.astype(np.float64)
     return f0, ap, sp, mcep
 
 def mcep2wav(mcep, f0, ap):
+  f0 = f0.astype(np.float64)
+  ap = ap.astype(np.float64)
+  mcep = mcep.astype(np.float64)
   decoded_sp = pyworld.decode_spectral_envelope(mcep, sampling_rate,
       fft_size=n_fft)
   wav = pyworld.synthesize(f0, decoded_sp, ap, sampling_rate)
@@ -132,7 +144,8 @@ def mcep2wav(mcep, f0, ap):
 
 if __name__ == '__main__':
   import sys
-  # mag, mel = wav2spectrogram(sys.argv[1])
+  mag, mel = wav2spectrogram(sys.argv[1])
+  print(mel.dtype)
   # print('mag.shape: ', mag.shape)
   # print('mel.shape: ', mel.shape)
   # reconstructed_wav = melspectrogram2wav(mel)
@@ -143,6 +156,8 @@ if __name__ == '__main__':
   # mfcc = wav2mfcc(sys.argv[1])
   # print(mfcc.shape)
   f0, ap, sp, mcep = wav2mcep(sys.argv[1])
+  print(mcep.dtype)
+  mcep = mcep.astype(np.float32)
   reconstructed_wav = mcep2wav(mcep.T, f0, ap)
   print(f0.shape)
   print(ap.shape)
