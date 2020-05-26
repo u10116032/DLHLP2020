@@ -56,12 +56,12 @@ def main():
       fake_y_d = D(fake_y, real_y_attr, False)
       fake_y_c = C(fake_y, False)
       fake_x = G(real_x, real_x_attr, True)
-      gan_loss = tf.reduce_mean(-1 * ops.safe_log(fake_y_d))
-      # gan_loss = tf.reduce_mean(-1 * fake_y_d)
+      # gan_loss = tf.reduce_mean(-1 * ops.safe_log(fake_y_d))
+      gan_loss = tf.reduce_mean(-1 * fake_y_d)
       cycle_loss = l1_loss(real_x, reconst_x)
       cls_loss = ce_loss(real_y_attr, fake_y_c)
       identity_loss = l1_loss(real_x, fake_x)
-      loss = gan_loss + 10 * cycle_loss + cls_loss + 5 * identity_loss
+      loss = gan_loss + 3 * cycle_loss + 2 * cls_loss + 2 * identity_loss
       G_gradients = tape.gradient(loss, G.trainable_variables)
       G_optimizer.apply_gradients(zip(G_gradients, G.trainable_variables))
     G_lr.assign(ops.cosine_lr( step, learning_rate, total_steps, 
@@ -78,9 +78,9 @@ def main():
       fake_y = G(real_x, real_y_attr, False)
       fake_y_d = D(fake_y, real_y_attr, True)
       real_y_d = D(real_y, real_y_attr, True)
-      gan_loss = tf.reduce_mean(
-          -1 * ops.safe_log(real_y_d) + (-1) * ops.safe_log(1 - fake_y_d))
-      # gan_loss = 0.5 * tf.reduce_mean(fake_y_d - real_y_d)
+      # gan_loss = tf.reduce_mean(
+      #     -1 * ops.safe_log(real_y_d) + (-1) * ops.safe_log(1 - fake_y_d))
+      gan_loss = 0.5 * tf.reduce_mean(fake_y_d - real_y_d)
 
       # alpha = tf.random.uniform([tf.shape(fake_y)[0],1,1,1], 0, 1)
       # inter = alpha * real_x + (1-alpha) * fake_y
@@ -91,7 +91,7 @@ def main():
       slopes = tf.sqrt(tf.reduce_sum(tf.square(grad), axis=[1,2,3]))
       gradient_penalty = tf.reduce_mean((slopes - 1.)**2)
 
-      loss = gan_loss # + 10 * gradient_penalty
+      loss = gan_loss + 10 * gradient_penalty
       D_gradients = tape.gradient(loss, D.trainable_variables)
       D_optimizer.apply_gradients(zip(D_gradients, D.trainable_variables))
     D_lr.assign(ops.cosine_lr( step, learning_rate, total_steps, 
@@ -149,7 +149,7 @@ def main():
       y = mcep_normalizer.batch_mcep_norm(y_feature['mcep'], y_id)
       y = tf.expand_dims(y, axis=-1)
 
-      if (step+1) % 2 == 0:
+      if (step+1) % 5 == 0:
         loss_G = train_G(x, x_id_onehot, y, y_id_onehot, step)
         tf.summary.scalar('loss_G', loss_G, step=G_optimizer.iterations)
       else:
